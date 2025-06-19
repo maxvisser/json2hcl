@@ -13,6 +13,22 @@ Convert JSON to HCL and HCL to JSON via STDIN / STDOUT with smart format detecti
 - **Nested Structures**: Preserves complex nested data for `.tfvars` files
 - **Expression Handling**: Properly handles Terraform interpolations and expressions
 
+## Quick Start
+
+```bash
+# Convert JSON to Terraform format (.tf)
+json2hcl -output infrastructure.tf < input.json
+
+# Convert JSON to variables format (.tfvars)  
+json2hcl -output variables.tfvars < input.json
+
+# Force block format regardless of extension
+json2hcl --treat-arrays-as-blocks < input.json
+
+# Force nested format regardless of extension
+json2hcl --keep-arrays-nested < input.json
+```
+
 ## Warning
 
 We don't use json2hcl anymore ourselves, so we can't invest time into it. However, we're still welcoming PRs.
