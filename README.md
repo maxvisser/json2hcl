@@ -2,7 +2,16 @@
 
 # json2hcl (and hcl2json)
 
-Convert JSON to HCL and HCL to JSON via STDIN / STDOUT.
+Convert JSON to HCL and HCL to JSON via STDIN / STDOUT with smart format detection.
+
+## Features
+
+- **Smart Format Detection**: Automatically detects whether to generate `.tf` (separate blocks) or `.tfvars` (nested structures) format based on file extension
+- **Explicit Control**: Use flags to override automatic detection for precise output control
+- **Bidirectional**: Convert JSON ↔ HCL in both directions
+- **Block Conversion**: Intelligently converts JSON arrays to HCL blocks (variables, resources, providers, etc.)
+- **Nested Structures**: Preserves complex nested data for `.tfvars` files
+- **Expression Handling**: Properly handles Terraform interpolations and expressions
 
 ## Warning
 
@@ -34,44 +43,199 @@ curl -SsL https://github.com/kvz/json2hcl/releases/download/v0.0.6/json2hcl_v0.0
   | sudo tee /usr/local/bin/json2hcl > /dev/null && sudo chmod 755 /usr/local/bin/json2hcl && json2hcl -version
 ```
 
-## Use
+## Usage
 
-Here's an example [`fixtures/infra.tf.json`](fixtures/infra.tf.json) being
-converted to HCL:
+### Basic Conversion
+
+Convert JSON to HCL (defaults to Terraform format with separate blocks):
 
 ```bash
-$ json2hcl < fixtures/infra.tf.json
-"output" "arn" {
-  "value" = "${aws_dynamodb_table.basic-dynamodb-table.arn}"
-}
-... rest of HCL truncated
+$ json2hcl < input.json
+$ json2hcl < input.json > output.tf
 ```
 
-Typical use would be
+### Automatic Format Detection
 
+The tool automatically detects the target format based on the output file extension:
+
+**For `.tf` files (Terraform format with separate blocks):**
 ```bash
-$ json2hcl < fixtures/infra.tf.json > fixtures/infra.tf
+$ json2hcl -output infrastructure.tf < infra.tf.json
 ```
 
-## hcl2json
-
-As a bonus, the conversion the other way around is also supported via the `-reverse` flag:
-
+**For `.tfvars` files (nested variable format):**
 ```bash
-$ json2hcl -reverse < fixtures/infra.tf
+$ json2hcl -output variables.tfvars < vars.json
+```
+
+### Explicit Control Flags
+
+Override automatic detection with explicit flags:
+
+**Force block format (even for `.tfvars` files):**
+```bash
+$ json2hcl --treat-arrays-as-blocks < input.json
+```
+
+**Force nested format (even for `.tf` files):**
+```bash
+$ json2hcl --keep-arrays-nested < input.json
+```
+
+### Examples
+
+#### Example 1: Converting Infrastructure JSON to Terraform
+
+Input (`infra.tf.json`):
+```json
 {
-  "output": [
+  "variable": {
+    "region": [{"type": "string"}],
+    "instance_type": [{"type": "string"}]
+  },
+  "resource": {
+    "aws_instance": {
+      "web": [{
+        "ami": "ami-12345",
+        "instance_type": "${var.instance_type}"
+      }]
+    }
+  }
+}
+```
+
+Output with `json2hcl -output infra.tf`:
+```hcl
+variable "region" {
+  type = string
+}
+
+variable "instance_type" {
+  type = string
+}
+
+resource "aws_instance" "web" {
+  ami           = "ami-12345"
+  instance_type = var.instance_type
+}
+```
+
+#### Example 2: Converting Variables JSON to .tfvars
+
+Input (`variables.json`):
+```json
+{
+  "vpc_config": {
+    "cidr_block": "10.0.0.0/16",
+    "enable_dns": true
+  },
+  "subnets": [
     {
-      "arn": [
-        {
-          "value": "${aws_dynamodb_table.basic-dynamodb-table.arn}"
-        }
-      ]
-    }, 
-  ... rest of JSON truncated
+      "name": "public-1",
+      "cidr": "10.0.1.0/24"
+    },
+    {
+      "name": "private-1", 
+      "cidr": "10.0.2.0/24"
+    }
   ]
 }
 ```
+
+Output with `json2hcl -output variables.tfvars`:
+```hcl
+vpc_config = {
+  cidr_block = "10.0.0.0/16"
+  enable_dns = true
+}
+
+subnets = [
+  {
+    name = "public-1"
+    cidr = "10.0.1.0/24"
+  },
+  {
+    name = "private-1"
+    cidr = "10.0.2.0/24"
+  }
+]
+```
+
+## hcl2json (Reverse Conversion)
+
+Convert HCL back to JSON using the `-reverse` flag:
+
+```bash
+$ json2hcl -reverse < infrastructure.tf > infrastructure.json
+```
+
+Example:
+```bash
+$ json2hcl -reverse < fixtures/infra.tf
+{
+  "variable": {
+    "region": [
+      {
+        "type": "string"
+      }
+    ]
+  },
+  "resource": {
+    "aws_instance": {
+      "web": [
+        {
+          "ami": "ami-12345",
+          "instance_type": "${var.instance_type}"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Command Line Options
+
+```
+Usage:
+  -version
+        Prints current app version
+  -reverse
+        Input HCL, output JSON
+  -output string
+        Output file path (used to determine file type for conversion)
+  -treat-arrays-as-blocks
+        Convert JSON arrays to separate HCL blocks (e.g., variables, resources)
+  -keep-arrays-nested
+        Keep JSON arrays as nested structures (e.g., for .tfvars format)
+```
+
+## Conversion Behavior
+
+### Automatic Detection Priority
+
+1. **Explicit flags**: `--treat-arrays-as-blocks` or `--keep-arrays-nested` override everything
+2. **File extension**: `-output filename.tf` vs `-output filename.tfvars`
+3. **Default**: Terraform format (separate blocks) for backward compatibility
+
+### Block Types
+
+The following JSON structures are converted to separate HCL blocks when using Terraform format:
+
+- `variable` → `variable "name" { ... }`
+- `resource` → `resource "type" "name" { ... }`
+- `data` → `data "type" "name" { ... }`
+- `provider` → `provider "name" { ... }`
+- `output` → `output "name" { ... }`
+- `locals` → `locals { ... }`
+- `module` → `module "name" { ... }`
+- `terraform` → `terraform { ... }`
+
+### Nested Blocks
+
+Within resources, the following are also converted to blocks:
+- `attribute` → `attribute { ... }`
+- `global_secondary_index` → `global_secondary_index { ... }`
+- `local_secondary_index` → `local_secondary_index { ... }`
 
 ## Development
 
@@ -81,6 +245,7 @@ cd ~/go/src/github.com/kvz
 git clone git@github.com:kvz/json2hcl.git
 cd json2hcl
 go get
+go test -v  # Run tests
 ```
 
 ## Why?
@@ -108,11 +273,22 @@ so far, they haven't.
 
 ### Ideabox (Unplanned)
 
-- [ ] Give the README.md some love
+- [x] Give the README.md some love
+- [ ] Support for more Terraform block types
+
+### v0.1.0 (Unreleased)
+
+- [x] Smart format detection based on file extension
+- [x] `--treat-arrays-as-blocks` flag for explicit block conversion
+- [x] `--keep-arrays-nested` flag for explicit nested format
+- [x] Improved block conversion for variables, resources, providers, outputs
+- [x] Better handling of nested blocks (attributes, indexes)
+- [x] Expression and interpolation handling
+- [x] Comprehensive test suite with HCL sorting
 
 ### v0.0.7 (Unreleased)
 
-- [ ] Tests
+- [x] Tests
 
 ### v0.0.6 (2016-09-06)
 
@@ -131,3 +307,4 @@ so far, they haven't.
 
 - [Marius Kleidl](https://github.com/Acconut)
 - [Kevin van Zonneveld](https://github.com/kvz)
+- [MaxVisser](https://github.com/maxvisser)

@@ -1,0 +1,20 @@
+large_number_array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+mixed_small_array  = ["string", 123, true, null]
+mixed_large_array  = ["string", 123, true, null, "another", 456, false]
+complex_array = [{
+  name  = "item1"
+  value = 100
+  }, {
+  name  = "item2"
+  value = 200
+  }, {
+  name  = "item3"
+  value = 300
+}]
+empty_arrays = {
+  empty1 = []
+  empty2 = []
+}
+small_simple_array     = ["a", "b", "c", "d"]
+threshold_simple_array = ["a", "b", "c", "d", "e"]
+large_simple_array     = ["a", "b", "c", "d", "e", "f", "g", "h"]

@@ -22,6 +22,8 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go-version }}
+    - name: Run tests
+      run: go test -v
     - uses: goreleaser/goreleaser-action@v6
       with:
         args: ${{ github.ref_type == 'tag' && 'release' || 'release --snapshot' }}
